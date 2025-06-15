@@ -5,13 +5,19 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ApiService {
+  // Hugging Face token (for private spaces)
+  static const hfToken = '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'; // 🔒 Replace with your actual token
+
+  // Hugging Face private Space endpoints
   static const modelUrl = 'https://amirnaufal-paddysnap-api.hf.space/predict';
-  static const rasaUrl = 'http://192.168.63.23:5005/webhooks/rest/webhook';
+  static const rasaUrl = 'https://your-private-rasa-space.hf.space/webhooks/rest/webhook';
 
   // CNN prediction + log result to Firestore
   static Future<Map<String, dynamic>> getDiseaseFromImage(File image, String imageUrl) async {
     var request = http.MultipartRequest('POST', Uri.parse(modelUrl));
+    request.headers['Authorization'] = 'Bearer $hfToken'; // ✅ Include auth token
     request.files.add(await http.MultipartFile.fromPath('image', image.path));
+
     var response = await request.send();
 
     if (response.statusCode == 200) {
@@ -48,7 +54,10 @@ class ApiService {
   static Future<String> getRasaResponse(String message) async {
     final response = await http.post(
       Uri.parse(rasaUrl),
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $hfToken', // ✅ Include auth token
+      },
       body: jsonEncode({"sender": "user", "message": message}),
     );
 
@@ -56,7 +65,7 @@ class ApiService {
       final List data = json.decode(response.body);
       return data.isNotEmpty ? data[0]['text'] ?? "No reply." : "No response.";
     } else {
-      throw Exception("❌ Failed to contact Rasa backend.");
+      throw Exception("❌ Failed to contact Rasa backend: ${response.statusCode}");
     }
   }
 }
