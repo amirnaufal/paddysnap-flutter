@@ -10,7 +10,7 @@ class ApiService {
 
   // Hugging Face private Space endpoints
   static const modelUrl = 'https://amirnaufal-paddysnap-api.hf.space/predict';
-  static const rasaUrl = 'https://your-private-rasa-space.hf.space/webhooks/rest/webhook';
+  static const rasaUrl = 'https://amirnaufal-paddysnap-rasa.hf.space/webhooks/rest/webhook';
 
   // CNN prediction + log result to Firestore
   static Future<Map<String, dynamic>> getDiseaseFromImage(File image, String imageUrl) async {
