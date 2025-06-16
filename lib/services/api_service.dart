@@ -58,7 +58,6 @@ class ApiService {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $hfToken', // ✅ Include auth token
       },
-      body: jsonEncode({"sender": "user", "message": message}),
     );
 
     if (response.statusCode == 200) {
