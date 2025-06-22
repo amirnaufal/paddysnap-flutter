@@ -1,4 +1,3 @@
-// chat_screen.dart with multi-chat support and drawer menu
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,6 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path/path.dart' as path;
 import '../services/api_service.dart';
+import 'login_screen.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class ChatScreen extends StatefulWidget {
   final String userName;
@@ -83,18 +84,17 @@ class _ChatScreenState extends State<ChatScreen> {
         .get();
 
     _chatList = snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+
     if (_chatList.isNotEmpty) {
       setState(() {
         currentChatId = _chatList.first['id'];
       });
       _loadMessages();
     } else {
-      setState(() {
-        currentChatId = null;
-        _messages.clear();
-      });
+      await _startNewChat(); // 🚀 Auto-start chat if none
     }
   }
+
 
   Future<void> _startNewChat() async {
     if (uid == null) return;
@@ -314,192 +314,279 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        //backgroundColor: const Color(0xFF102820),
-        backgroundColor: const Color (0xFF000000),
-        title: const Text("PaddySnap", style: TextStyle(color: Color(0xFFB4FF9F), fontWeight: FontWeight.bold)),
-      ),
-      drawer: Drawer(
-        backgroundColor: Color(0xFF102820),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.only(left: 16, right: 16, top: 40, bottom: 0),
-              alignment: Alignment.centerLeft,
-              color: Colors.transparent,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("Chats", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.add),
-                    label: const Text("New Chat"),
-                    onPressed: _startNewChat,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
+    return SafeArea(
+      child: Scaffold(
+        appBar: AppBar(
+          //backgroundColor: const Color(0xFF102820),
+          backgroundColor: const Color (0xFF000000),
+          title: const Text("PaddySnap", style: TextStyle(color: Color(0xFFB4FF9F), fontWeight: FontWeight.bold)),
+        ),
+        drawer: Drawer(
+          backgroundColor: const Color(0xFF102820),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.only(left: 16, right: 16, top: 40, bottom: 0),
+                alignment: Alignment.centerLeft,
+                color: Colors.transparent,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Chats", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.add),
+                      label: const Text("New Chat"),
+                      onPressed: _startNewChat,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: _chatList.isEmpty
-                  ? Center(
-                child: GestureDetector(
-                  onTap: () => _showSnackBar("Tap the green + New Chat button to get started!"),
-                  child: const Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Text(
-                      '📭 No chats yet.\nTap + New Chat to start!',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
+                  ],
                 ),
-              )
-                  : ListView.builder(
-                itemCount: _chatList.length,
-                itemBuilder: (context, index) {
-                  final chat = _chatList[index];
-                  return ListTile(
-                    title: Text(
-                      chat['title'] ?? 'Chat',
-                      style: const TextStyle(color: Colors.white),
+              ),
+              Expanded(
+                child: _chatList.isEmpty
+                    ? Center(
+                  child: GestureDetector(
+                    onTap: () => _showSnackBar("Tap the green + New Chat button to get started!"),
+                    child: const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Text(
+                        '📭 No chats yet.\nTap + New Chat to start!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
+                        ),
+                      ),
                     ),
-                    selected: chat['id'] == currentChatId,
-                    onTap: () {
-                      setState(() {
-                        currentChatId = chat['id'];
-                        _messages.clear();
-                      });
-                      Navigator.pop(context);
-                      _loadMessages();
-                    },
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.blueAccent),
-                          onPressed: () => _renameChat(chat['id']),
-                          tooltip: 'Rename Chat',
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _deleteChat(chat['id']),
-                          tooltip: 'Delete Chat',
-                        ),
-                      ],
+                  ),
+                )
+                    : ListView.builder(
+                  itemCount: _chatList.length,
+                  itemBuilder: (context, index) {
+                    final chat = _chatList[index];
+                    return ListTile(
+                      title: Text(
+                        chat['title'] ?? 'Chat',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      selected: chat['id'] == currentChatId,
+                      onTap: () {
+                        setState(() {
+                          currentChatId = chat['id'];
+                          _messages.clear();
+                        });
+                        Navigator.pop(context);
+                        _loadMessages();
+                      },
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.blueAccent),
+                            onPressed: () => _renameChat(chat['id']),
+                            tooltip: 'Rename Chat',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deleteChat(chat['id']),
+                            tooltip: 'Delete Chat',
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // 👇 Add this block at the bottom of your Column
+              ListTile(
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text("Logout", style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text("Confirm Logout"),
+                        content: const Text("Are you sure you want to log out?"),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context), // Cancel
+                            child: const Text("Cancel"),
+                          ),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                            onPressed: () async {
+                              Navigator.pop(context); // Close dialog first
+                              await FirebaseAuth.instance.signOut();
+                              await FirebaseAuth.instance.signOut();
+                              await GoogleSignIn().signOut();
+                              // Navigate directly to LoginScreen and clear stack
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                                    (route) => false,
+                              );
+                            },
+                            child: const Text("Logout"),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+              ),
+            ],
+          ),
+        ),
+
+
+        body: Column(
+          children: [
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: _messages.length,
+                itemBuilder: (context, index) {
+                  final message = _messages[index];
+                  final isUser = message['type'] == 'user';
+                  final time = (message['timestamp'] as Timestamp).toDate();
+                  final timeString = TimeOfDay.fromDateTime(time).format(context);
+
+                  return Align(
+                    alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isUser ? Colors.green[300] : Colors.green[100],
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.green.shade700, width: 0.5),
+                      ),
+                      constraints: const BoxConstraints(maxWidth: 280),
+                      child: Column(
+                        crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isUser ? "You" : "PaddyBot",
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade900),
+                          ),
+                          if (message['text'] != null)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4.0),
+                              child: Text(message['text'], style: const TextStyle(fontSize: 15, color: Colors.black)),
+                            ),
+                          if (message['imageUrl'] != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: isUser
+                                  ? Image.file(File(message['imageUrl']), width: 200, fit: BoxFit.cover)
+                                  : Image.network(message['imageUrl'], width: 200, fit: BoxFit.cover),
+                            ),
+                          Text(timeString, style: const TextStyle(fontSize: 10, color: Colors.black54)),
+                        ],
+                      ),
                     ),
                   );
                 },
               ),
             ),
-          ],
-        ),
-      ),
-
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final message = _messages[index];
-                final isUser = message['type'] == 'user';
-                final time = (message['timestamp'] as Timestamp).toDate();
-                final timeString = TimeOfDay.fromDateTime(time).format(context);
-
-                return Align(
-                  alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isUser ? Colors.green[300] : Colors.green[100],
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.green.shade700, width: 0.5),
-                    ),
-                    constraints: const BoxConstraints(maxWidth: 280),
-                    child: Column(
-                      crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            if (_selectedImage != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: Row(
+                  children: [
+                    Stack(
                       children: [
-                        Text(
-                          isUser ? "You" : "PaddyBot",
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade900),
+                        Image.file(_selectedImage!, width: 80),
+                        Positioned(
+                          top: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedImage = null;
+                              });
+                            },
+                            child: Container(
+                              decoration: const BoxDecoration(
+                                color: Colors.black54,
+                                shape: BoxShape.circle,
+                              ),
+                              padding: const EdgeInsets.all(4),
+                              child: const Icon(Icons.close, color: Colors.white, size: 16),
+                            ),
+                          ),
                         ),
-                        if (message['text'] != null)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4.0),
-                            child: Text(message['text'], style: const TextStyle(fontSize: 15, color: Colors.black)),
-                          ),
-                        if (message['imageUrl'] != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: isUser
-                                ? Image.file(File(message['imageUrl']), width: 200, fit: BoxFit.cover)
-                                : Image.network(message['imageUrl'], width: 200, fit: BoxFit.cover),
-                          ),
-                        Text(timeString, style: const TextStyle(fontSize: 10, color: Colors.black54)),
                       ],
                     ),
-                  ),
-                );
-              },
-            ),
-          ),
-          if (_selectedImage != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Row(
-                children: [
-                  Image.file(_selectedImage!, width: 80),
-                  const SizedBox(width: 10),
-                  const Text("Image ready to send"),
-                ],
+                    const SizedBox(width: 10),
+                    const Text("Image ready to send"),
+                  ],
+                ),
               ),
-            ),
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.image),
-                  onPressed: () => _pickImage(ImageSource.gallery),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.camera_alt),
-                  onPressed: () => _pickImage(ImageSource.camera),
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _sendMessage(text: _controller.text, image: _selectedImage),
-                    decoration: const InputDecoration(
-                      hintText: 'Type your message...',
-                      border: InputBorder.none,
+
+            const Divider(height: 1),
+            if (_selectedImage == null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.image),
+                      onPressed: () => _pickImage(ImageSource.gallery),
                     ),
-                  ),
+                    IconButton(
+                      icon: const Icon(Icons.camera_alt),
+                      onPressed: () => _pickImage(ImageSource.camera),
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _sendMessage(text: _controller.text),
+                        decoration: const InputDecoration(
+                          hintText: 'Type your message...',
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: _isSending ? const CircularProgressIndicator() : const Icon(Icons.send),
+                      onPressed: _isSending ? null : () => _sendMessage(text: _controller.text),
+                    ),
+                  ],
                 ),
-                IconButton(
-                  icon: _isSending ? const CircularProgressIndicator() : const Icon(Icons.send),
-                  onPressed: _isSending ? null : () => _sendMessage(text: _controller.text, image: _selectedImage),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.image),
+                      onPressed: () => _pickImage(ImageSource.gallery),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.camera_alt),
+                      onPressed: () => _pickImage(ImageSource.camera),
+                    ),
+                    const Text("Send the image"),
+                    const Spacer(),
+                    IconButton(
+                      icon: _isSending ? const CircularProgressIndicator() : const Icon(Icons.send),
+                      onPressed: _isSending ? null : () => _sendMessage(image: _selectedImage),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        ],
+              ),
+
+          ],
+        ),
       ),
     );
   }
