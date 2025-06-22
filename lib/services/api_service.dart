@@ -50,19 +50,25 @@ class ApiService {
     }
   }
 
-  // Send normal text query to Rasa chatbot
+  // ✅ Send normal text query to Rasa chatbot
   static Future<String> getRasaResponse(String message) async {
     final response = await http.post(
       Uri.parse(rasaUrl),
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $hfToken', // ✅ Include auth token
+        'Authorization': 'Bearer $hfToken',
       },
+      body: jsonEncode({
+        "sender": "user",
+        "message": message,
+      }),
     );
 
     if (response.statusCode == 200) {
       final List data = json.decode(response.body);
-      return data.isNotEmpty ? data[0]['text'] ?? "No reply." : "No response.";
+      return data.isNotEmpty
+          ? data.map((msg) => msg['text'] ?? '').join('\n\n') // ✅ Join all Rasa messages
+          : "No response.";
     } else {
       throw Exception("❌ Failed to contact Rasa backend: ${response.statusCode}");
     }
